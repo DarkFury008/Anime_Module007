@@ -56,8 +56,8 @@ function pathParts(url) {
   catch (_) { return String(url || "").split("?")[0].split("/").filter(Boolean); }
 }
 function extractAnimeSession(url) {
-  const p = pathParts(url);
-  return p[0] === "anime" ? (p[1] || "") : "";
+  const match = String(url || "").match(/\/anime\/([^/?#]+)/i);
+  return match ? match[1] : "";
 }
 function extractAnimeId(url) {
   const p = pathParts(url);
