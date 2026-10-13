@@ -93,32 +93,54 @@ async function getAlternatePoster(title) {
       return "";
     }
 
+    const normalize = s => String(s || "")
+      .replace(/&amp;/g, "&")
+      .replace(/&#39;|&#x27;/g, "'")
+      .replace(/&quot;/g, '"')
+      .replace(/<[^>]*>/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+    const wanted = normalize(title);
     const blocks = html.split('<div class="anime-item">');
+    const candidates = [];
 
     for (let i = 1; i < blocks.length; i++) {
       const block = blocks[i];
+
       const titleMatch = block.match(
         /<div\s+class="anime-name">\s*<a[^>]*>([^<]+)<\/a>/i
       );
-
-      if (!titleMatch ||
-          titleMatch[1].trim().toLowerCase() !== title.toLowerCase()) {
-        continue;
-      }
 
       const imgMatch = block.match(
         /<img\b[^>]*?(?:data-src|src)="([^"]+)"/i
       );
 
-      if (imgMatch && imgMatch[1]) {
-        return absUrl(imgMatch[1].replace(/&amp;/g, "&"));
-      }
-    }
-  } catch (error) {
-    console.log("[AnimePaheCustom] Alternate poster lookup failed: " + error);
-  }
+      if (!titleMatch || !imgMatch || !imgMatch[1]) continue;
 
-  return "";
+      candidates.push({
+        title: normalize(titleMatch[1]),
+        image: absUrl(imgMatch[1].replace(/&amp;/g, "&"))
+      });
+    }
+
+    const exact = candidates.find(item => item.title === wanted);
+    if (exact) return exact.image;
+
+    const partial = candidates.find(item =>
+      item.title.length >= 8 &&
+      wanted.length >= 8 &&
+      (item.title.includes(wanted) || wanted.includes(item.title))
+    );
+
+    return partial ? partial.image : "";
+  } catch (error) {
+    console.log(
+      "[AnimePaheCustom] Alternate poster lookup failed: " + error
+    );
+    return "";
+  }
 }
 
 
