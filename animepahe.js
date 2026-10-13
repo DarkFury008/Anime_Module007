@@ -9,7 +9,7 @@
  * This code is a testable starting point, not a claim of verified playback.
  */
 
-const BASE = "https://animepahe.si";
+const BASE = "https://animepahe.pw";
 const API = BASE + "/api";
 const DEFAULT_HEADERS = {
   "Accept": "application/json, text/html, */*",
