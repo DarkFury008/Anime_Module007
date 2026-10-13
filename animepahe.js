@@ -72,6 +72,55 @@ function getAttr(tag, name) {
   return m ? htmlDecode(m[2]) : "";
 }
 
+async function getAlternatePoster(title) {
+  try {
+    const host = "https://animepahetv.to";
+    const url = host + "/search?q=" + encodeURIComponent(title);
+
+    const response = await fetchv2(url, {
+      "Referer": host + "/",
+      "User-Agent": "Mozilla/5.0"
+    }, "GET", null);
+
+    let html;
+    if (typeof response === "string") {
+      html = response;
+    } else if (response && typeof response.text === "function") {
+      html = await response.text();
+    } else if (response && typeof response.body === "string") {
+      html = response.body;
+    } else {
+      return "";
+    }
+
+    const blocks = html.split('<div class="anime-item">');
+
+    for (let i = 1; i < blocks.length; i++) {
+      const block = blocks[i];
+      const titleMatch = block.match(
+        /<div\s+class="anime-name">\s*<a[^>]*>([^<]+)<\/a>/i
+      );
+
+      if (!titleMatch ||
+          titleMatch[1].trim().toLowerCase() !== title.toLowerCase()) {
+        continue;
+      }
+
+      const imgMatch = block.match(
+        /<img\b[^>]*?(?:data-src|src)="([^"]+)"/i
+      );
+
+      if (imgMatch && imgMatch[1]) {
+        return absUrl(imgMatch[1].replace(/&amp;/g, "&"));
+      }
+    }
+  } catch (error) {
+    console.log("[AnimePaheCustom] Alternate poster lookup failed: " + error);
+  }
+
+  return "";
+}
+
 
 async function searchResults(keyword) {
   const q = String(keyword || "").trim();
@@ -116,16 +165,24 @@ async function searchResults(keyword) {
         ? data.data
         : [];
 
-      const results = rows.map(item => ({
+      const results = await Promise.all(rows.map(async item => {
+       const originalPoster = (item.poster || item.image)
+        ? absUrl(item.poster || item.image)
+        : "";
+        
+       const alternatePoster = await getAlternatePoster(
+        String(item.title || item.name || "")
+       );
+       return{
         title: String(item.title || item.name || "Anime"),
-        image: (item.poster || item.image)
-         ? absUrl(item.poster || item.image)
-         : "",
+        image: alternatePoster || originalPoster,
         href: item.session
-          ? host + "/anime/" + item.session +
-            (item.id ? "/" + item.id : "")
-          : ""
-      })).filter(item => item.href);
+         ? host + "/anime/" + item.session +
+           (item.id ? "/" + item.id : "")
+         : ""
+ };
+})).then(items => items.filter(item => item.href));
+
 
       if (results.length) {
         return JSON.stringify(results);
