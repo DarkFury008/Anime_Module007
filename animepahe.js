@@ -72,26 +72,61 @@ function getAttr(tag, name) {
   return m ? htmlDecode(m[2]) : "";
 }
 
+
 async function searchResults(keyword) {
-  try {
-    const q = String(keyword || "").trim();
-    if (!q) return JSON.stringify([]);
-    const data = await requestJson(API + "?m=search&q=" + encodeURIComponent(q));
-    const rows = Array.isArray(data.data) ? data.data : [];
-    return JSON.stringify(rows.map(item => {
-      const session = String(item.session || "");
-      const id = String(item.id || "");
-      const title = String(item.title || item.name || "Anime");
-      return {
-        title: item.type ? title + " (" + item.type + ")" : title,
+  const q = String(keyword || "").trim();
+  if (!q) return JSON.stringify([]);
+
+  const query = "?l=8&m=search&q=" + encodeURIComponent(q);
+  const hosts = [
+    "https://animepahe.si",
+    "https://animepahe.com"
+  ];
+
+  for (const host of hosts) {
+    try {
+      const response = await fetchv2(
+        host + "/api" + query,
+        {
+          "Accept": "application/json",
+          "Referer": host + "/"
+        },
+        "GET",
+        null
+      );
+
+      const body = typeof response === "string"
+        ? response
+        : response.body;
+
+      const data = typeof body === "string"
+        ? JSON.parse(body)
+        : body;
+
+      const rows = Array.isArray(data.data)
+        ? data.data
+        : [];
+
+      const results = rows.map(item => ({
+        title: String(item.title || item.name || "Anime"),
         image: item.poster || item.image || "",
-        href: session ? BASE + "/anime/" + session + (id ? "/" + id : "") : ""
-      };
-    }).filter(item => item.href));
-  } catch (_) {
-    return JSON.stringify([]);
+        href: item.session
+          ? host + "/anime/" + item.session +
+            (item.id ? "/" + item.id : "")
+          : ""
+      })).filter(item => item.href);
+
+      if (results.length) {
+        return JSON.stringify(results);
+      }
+    } catch (_) {
+      // Try the next domain.
+    }
   }
+
+  return JSON.stringify([]);
 }
+
 
 async function extractDetails(url) {
   try {
