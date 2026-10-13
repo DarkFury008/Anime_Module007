@@ -230,6 +230,10 @@ async function searchResults(keyword) {
       const data = typeof body === "string"
         ? JSON.parse(body)
         : body;
+     
+      const rows = Array.isArray(data.data)
+        ? data.data
+        : [];
 
       
       const results = rows.map(item => ({
