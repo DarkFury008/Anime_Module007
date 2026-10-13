@@ -72,7 +72,7 @@ function getAttr(tag, name) {
   return m ? htmlDecode(m[2]) : "";
 }
 
-async function searchResults(keyword) {
+export async function searchResults(keyword) {
   try {
     const q = String(keyword || "").trim();
     if (!q) return JSON.stringify([]);
@@ -93,7 +93,7 @@ async function searchResults(keyword) {
   }
 }
 
-async function extractDetails(url) {
+export async function extractDetails(url) {
   try {
     const html = await requestText(absUrl(url));
     const descMatch =
@@ -111,7 +111,7 @@ async function extractDetails(url) {
   }
 }
 
-async function extractEpisodes(url) {
+export async function extractEpisodes(url) {
   try {
     const session = extractAnimeSession(url);
     const id = extractAnimeId(url);
@@ -143,7 +143,7 @@ async function extractEpisodes(url) {
   }
 }
 
-async function extractStreamUrl(url) {
+export async function extractStreamUrl(url) {
   try {
     const html = await requestText(absUrl(url), {
       ...DEFAULT_HEADERS,
@@ -185,4 +185,4 @@ async function extractStreamUrl(url) {
   }
 }
 
-export { searchResults, extractDetails, extractEpisodes, extractStreamUrl };
+
