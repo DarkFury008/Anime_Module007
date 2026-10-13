@@ -73,95 +73,114 @@ function getAttr(tag, name) {
 }
 
 
+
 async function getAlternatePoster(title) {
   try {
     const host = "https://animepahetv.to";
-    const url = host + "/search?q=" + encodeURIComponent(title);
-
-    const html = await requestText(url, {
-      "Referer": host + "/",
-      "User-Agent": "Mozilla/5.0"
-    });
 
     const normalize = s => cleanText(s)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
 
-    const wanted = normalize(title);
-    if (!wanted) return "";
+    const queries = [title];
 
-    const blocks = html.split(
-      /<div\b[^>]*class=["'][^"']*\banime-item\b[^"']*["'][^>]*>/i
-    );
-
-    const candidates = [];
-
-    for (let i = 1; i < blocks.length; i++) {
-      const block = blocks[i];
-
-      const titleMatch = block.match(
-        /<div\b[^>]*class=["'][^"']*\banime-name\b[^"']*["'][^>]*>[\s\S]*?<a\b[^>]*>([\s\S]*?)<\/a>/i
-      );
-
-      if (!titleMatch) continue;
-
-      const imageTags = block.match(/<img\b[^>]*>/gi) || [];
-      let image = "";
-
-      for (const tag of imageTags) {
-        const names = [
-          "data-src",
-          "data-original",
-          "data-lazy-src",
-          "data-srcset",
-          "src",
-          "srcset"
-        ];
-
-        for (const name of names) {
-          const raw = getAttr(tag, name);
-          if (!raw) continue;
-
-          const firstUrl = raw.split(",")[0].trim().split(/\s+/)[0];
-
-          if (
-            !firstUrl ||
-            firstUrl.startsWith("data:") ||
-            firstUrl.includes("placeholder")
-          ) continue;
-
-          try {
-            image = new URL(firstUrl, host).href;
-            break;
-          } catch (_) {}
-        }
-
-        if (image) break;
-      }
-
-      if (!image) continue;
-
-      candidates.push({
-        title: normalize(titleMatch[1]),
-        image
-      });
+    // Search using an alternate title only for poster matching.
+    if (
+      normalize(title).includes("frieren") &&
+      normalize(title).includes("beyond journey s end")
+    ) {
+      queries.push("Sousou no Frieren");
     }
 
-    const exact = candidates.find(item => item.title === wanted);
-    if (exact) return exact.image;
+    for (const searchTitle of queries) {
+      const url = host + "/search?q=" +
+        encodeURIComponent(searchTitle);
 
-    const partial = candidates.find(item =>
-      item.title.length >= 8 &&
-      wanted.length >= 8 &&
-      (
-        item.title.includes(wanted) ||
-        wanted.includes(item.title)
-      )
-    );
+      const html = await requestText(url, {
+        "Referer": host + "/",
+        "User-Agent": "Mozilla/5.0"
+      });
 
-    return partial ? partial.image : "";
+      const wanted = normalize(searchTitle);
 
+      const blocks = html.split(
+        /<div\b[^>]*class=["'][^"']*\banime-item\b[^"']*["'][^>]*>/i
+      );
+
+      const candidates = [];
+
+      for (let i = 1; i < blocks.length; i++) {
+        const block = blocks[i];
+
+        const titleMatch = block.match(
+          /<div\b[^>]*class=["'][^"']*\banime-name\b[^"']*["'][^>]*>[\s\S]*?<a\b[^>]*>([\s\S]*?)<\/a>/i
+        );
+
+        if (!titleMatch) continue;
+
+        const imageTags = block.match(/<img\b[^>]*>/gi) || [];
+        let image = "";
+
+        for (const tag of imageTags) {
+          for (const attr of [
+            "data-src",
+            "data-original",
+            "data-lazy-src",
+            "data-srcset",
+            "src",
+            "srcset"
+          ]) {
+            const raw = getAttr(tag, attr);
+            if (!raw) continue;
+
+            const firstUrl = raw
+              .split(",")[0]
+              .trim()
+              .split(/\s+/)[0];
+
+            if (
+              !firstUrl ||
+              firstUrl.startsWith("data:") ||
+              firstUrl.includes("placeholder")
+            ) continue;
+
+            try {
+              image = new URL(firstUrl, host).href;
+              break;
+            } catch (_) {}
+          }
+
+          if (image) break;
+        }
+
+        if (!image) continue;
+
+        candidates.push({
+          title: normalize(titleMatch[1]),
+          image
+        });
+      }
+
+      const exact = candidates.find(
+        item => item.title === wanted
+      );
+
+      if (exact) return exact.image;
+
+      const partial = candidates.find(item =>
+        item.title.length >= 8 &&
+        wanted.length >= 8 &&
+        (
+          item.title.includes(wanted) ||
+          wanted.includes(item.title)
+        )
+      );
+
+      if (partial) return partial.image;
+    }
+
+    return "";
   } catch (error) {
     console.log(
       "[AnimePaheCustom] Alternate poster lookup failed: " + error
@@ -169,6 +188,7 @@ async function getAlternatePoster(title) {
     return "";
   }
 }
+
 
 
 
