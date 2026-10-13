@@ -77,7 +77,7 @@ async function searchResults(keyword) {
   const q = String(keyword || "").trim();
   if (!q) return JSON.stringify([]);
 
-  const query = "?l=8&m=search&q=" + encodeURIComponent(q);
+  const query = "?m=search&q=" + encodeURIComponent(q);
   const hosts = [
     "https://animepahe.pw"
   ];
@@ -160,8 +160,8 @@ async function extractDetails(url) {
 async function extractEpisodes(url) {
   try {
     const session = extractAnimeSession(url);
-    const id = extractAnimeId(url);
-    if (!session || !id) return JSON.stringify([]);
+    const id = session;
+    if (!session) return JSON.stringify([]);
     const episodes = [];
     let page = 1;
     let lastPage = 1;
