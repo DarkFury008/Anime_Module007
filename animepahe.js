@@ -79,8 +79,7 @@ async function searchResults(keyword) {
 
   const query = "?l=8&m=search&q=" + encodeURIComponent(q);
   const hosts = [
-    "https://animepahe.si",
-    "https://animepahe.com"
+    "https://animepahe.pw"
   ];
 
   for (const host of hosts) {
