@@ -96,7 +96,7 @@ async function searchResults(keyword) {
 
       const body = typeof response === "string"
         ? response
-        : response.body;
+        : response.body ?? response.data ?? response.text;
 
       const data = typeof body === "string"
         ? JSON.parse(body)
