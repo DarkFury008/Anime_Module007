@@ -72,124 +72,54 @@ function getAttr(tag, name) {
   return m ? htmlDecode(m[2]) : "";
 }
 
-
-
 async function getAlternatePoster(title) {
   try {
     const host = "https://animepahetv.to";
+    const url = host + "/search?q=" + encodeURIComponent(title);
 
-    const normalize = s => cleanText(s)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
+    const response = await fetchv2(url, {
+      "Referer": host + "/",
+      "User-Agent": "Mozilla/5.0"
+    }, "GET", null);
 
-    const queries = [title];
-
-    // Search using an alternate title only for poster matching.
-    if (
-      normalize(title).includes("frieren") &&
-      normalize(title).includes("beyond journey s end")
-    ) {
-      queries.push("Sousou no Frieren");
+    let html;
+    if (typeof response === "string") {
+      html = response;
+    } else if (response && typeof response.text === "function") {
+      html = await response.text();
+    } else if (response && typeof response.body === "string") {
+      html = response.body;
+    } else {
+      return "";
     }
 
-    for (const searchTitle of queries) {
-      const url = host + "/search?q=" +
-        encodeURIComponent(searchTitle);
+    const blocks = html.split('<div class="anime-item">');
 
-      const html = await requestText(url, {
-        "Referer": host + "/",
-        "User-Agent": "Mozilla/5.0"
-      });
-
-      const wanted = normalize(searchTitle);
-
-      const blocks = html.split(
-        /<div\b[^>]*class=["'][^"']*\banime-item\b[^"']*["'][^>]*>/i
+    for (let i = 1; i < blocks.length; i++) {
+      const block = blocks[i];
+      const titleMatch = block.match(
+        /<div\s+class="anime-name">\s*<a[^>]*>([^<]+)<\/a>/i
       );
 
-      const candidates = [];
-
-      for (let i = 1; i < blocks.length; i++) {
-        const block = blocks[i];
-
-        const titleMatch = block.match(
-          /<div\b[^>]*class=["'][^"']*\banime-name\b[^"']*["'][^>]*>[\s\S]*?<a\b[^>]*>([\s\S]*?)<\/a>/i
-        );
-
-        if (!titleMatch) continue;
-
-        const imageTags = block.match(/<img\b[^>]*>/gi) || [];
-        let image = "";
-
-        for (const tag of imageTags) {
-          for (const attr of [
-            "data-src",
-            "data-original",
-            "data-lazy-src",
-            "data-srcset",
-            "src",
-            "srcset"
-          ]) {
-            const raw = getAttr(tag, attr);
-            if (!raw) continue;
-
-            const firstUrl = raw
-              .split(",")[0]
-              .trim()
-              .split(/\s+/)[0];
-
-            if (
-              !firstUrl ||
-              firstUrl.startsWith("data:") ||
-              firstUrl.includes("placeholder")
-            ) continue;
-
-            try {
-              image = new URL(firstUrl, host).href;
-              break;
-            } catch (_) {}
-          }
-
-          if (image) break;
-        }
-
-        if (!image) continue;
-
-        candidates.push({
-          title: normalize(titleMatch[1]),
-          image
-        });
+      if (!titleMatch ||
+          titleMatch[1].trim().toLowerCase() !== title.toLowerCase()) {
+        continue;
       }
 
-      const exact = candidates.find(
-        item => item.title === wanted
+      const imgMatch = block.match(
+        /<img\b[^>]*?(?:data-src|src)="([^"]+)"/i
       );
 
-      if (exact) return exact.image;
-
-      const partial = candidates.find(item =>
-        item.title.length >= 8 &&
-        wanted.length >= 8 &&
-        (
-          item.title.includes(wanted) ||
-          wanted.includes(item.title)
-        )
-      );
-
-      if (partial) return partial.image;
+      if (imgMatch && imgMatch[1]) {
+        return absUrl(imgMatch[1].replace(/&amp;/g, "&"));
+      }
     }
-
-    return "";
   } catch (error) {
-    console.log(
-      "[AnimePaheCustom] Alternate poster lookup failed: " + error
-    );
-    return "";
+    console.log("[AnimePaheCustom] Alternate poster lookup failed: " + error);
   }
+
+  return "";
 }
-
-
 
 
 async function searchResults(keyword) {
