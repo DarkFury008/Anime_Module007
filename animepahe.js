@@ -183,46 +183,48 @@ async function extractDetails(url) {
 }
 
 
+
 async function extractEpisodes(url) {
-  try {
-    const session = extractAnimeSession(url);
-    if (!session) return JSON.stringify([]);
+  const session = extractAnimeSession(url);
 
-    const episodes = [];
-    let page = 1;
-    let lastPage = 1;
-
-    do {
-      const data = await requestJson(
-        API + "?m=release&id=" + encodeURIComponent(session) +
-        "&sort=episode_asc&page=" + page
-      );
-
-      const rows = Array.isArray(data.data) ? data.data : [];
-
-      for (const ep of rows) {
-        if (!ep || !ep.session) continue;
-
-        const rawNumber = ep.episode ?? ep.number ?? (episodes.length + 1);
-        const number = Number(rawNumber);
-
-        episodes.push({
-          href: BASE + "/play/" + session + "/" + ep.session,
-          number: Number.isFinite(number) ? number : episodes.length + 1
-        });
-      }
-
-      lastPage = Number(data.last_page || page);
-      page++;
-    } while (page <= lastPage && page <= 100);
-
-    return JSON.stringify(episodes);
-  } catch (error) {
-    return JSON.stringify({
-      debugError: String(error)
-    });
+  if (!session) {
+    throw new Error("Could not read anime session from: " + url);
   }
+
+  const apiUrl =
+    API + "?m=release&id=" + encodeURIComponent(session) +
+    "&sort=episode_asc&page=1";
+
+  const raw = await requestText(apiUrl, {
+    ...DEFAULT_HEADERS,
+    "Referer": BASE + "/"
+  });
+
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(
+      "Release API returned non-JSON: " + raw.slice(0, 180)
+    );
+  }
+
+  if (!Array.isArray(data.data)) {
+    throw new Error(
+      "Unexpected release API response: " + raw.slice(0, 180)
+    );
+  }
+
+  return JSON.stringify(
+    data.data
+      .filter(ep => ep && ep.session)
+      .map((ep, index) => ({
+        href: BASE + "/play/" + session + "/" + ep.session,
+        number: Number(ep.episode ?? ep.number ?? index + 1)
+      }))
+  );
 }
+
 
 
 
