@@ -182,6 +182,48 @@ async function extractDetails(url) {
   }
 }
 
+
+async function extractEpisodes(url) {
+  try {
+    const session = extractAnimeSession(url);
+    if (!session) return JSON.stringify([]);
+
+    const episodes = [];
+    let page = 1;
+    let lastPage = 1;
+
+    do {
+      const data = await requestJson(
+        API + "?m=release&id=" + encodeURIComponent(session) +
+        "&sort=episode_asc&page=" + page
+      );
+
+      const rows = Array.isArray(data.data) ? data.data : [];
+
+      for (const ep of rows) {
+        if (!ep || !ep.session) continue;
+
+        const rawNumber = ep.episode ?? ep.number ?? (episodes.length + 1);
+        const number = Number(rawNumber);
+
+        episodes.push({
+          href: BASE + "/play/" + session + "/" + ep.session,
+          number: Number.isFinite(number) ? number : episodes.length + 1
+        });
+      }
+
+      lastPage = Number(data.last_page || page);
+      page++;
+    } while (page <= lastPage && page <= 100);
+
+    return JSON.stringify(episodes);
+  } catch (error) {
+    return JSON.stringify([]);
+  }
+}
+
+
+
 async function extractStreamUrl(url) {
   try {
     const html = await requestText(absUrl(url), {
