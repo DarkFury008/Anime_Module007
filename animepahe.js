@@ -72,56 +72,79 @@ function getAttr(tag, name) {
   return m ? htmlDecode(m[2]) : "";
 }
 
+
 async function getAlternatePoster(title) {
   try {
     const host = "https://animepahetv.to";
     const url = host + "/search?q=" + encodeURIComponent(title);
 
-    const response = await fetchv2(url, {
+    const html = await requestText(url, {
       "Referer": host + "/",
       "User-Agent": "Mozilla/5.0"
-    }, "GET", null);
+    });
 
-    let html;
-    if (typeof response === "string") {
-      html = response;
-    } else if (response && typeof response.text === "function") {
-      html = await response.text();
-    } else if (response && typeof response.body === "string") {
-      html = response.body;
-    } else {
-      return "";
-    }
-
-    const normalize = s => String(s || "")
-      .replace(/&amp;/g, "&")
-      .replace(/&#39;|&#x27;/g, "'")
-      .replace(/&quot;/g, '"')
-      .replace(/<[^>]*>/g, "")
+    const normalize = s => cleanText(s)
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
 
     const wanted = normalize(title);
-    const blocks = html.split('<div class="anime-item">');
+    if (!wanted) return "";
+
+    const blocks = html.split(
+      /<div\b[^>]*class=["'][^"']*\banime-item\b[^"']*["'][^>]*>/i
+    );
+
     const candidates = [];
 
     for (let i = 1; i < blocks.length; i++) {
       const block = blocks[i];
 
       const titleMatch = block.match(
-        /<div\s+class="anime-name">\s*<a[^>]*>([^<]+)<\/a>/i
+        /<div\b[^>]*class=["'][^"']*\banime-name\b[^"']*["'][^>]*>[\s\S]*?<a\b[^>]*>([\s\S]*?)<\/a>/i
       );
 
-      const imgMatch = block.match(
-        /<img\b[^>]*?(?:data-src|src)="([^"]+)"/i
-      );
+      if (!titleMatch) continue;
 
-      if (!titleMatch || !imgMatch || !imgMatch[1]) continue;
+      const imageTags = block.match(/<img\b[^>]*>/gi) || [];
+      let image = "";
+
+      for (const tag of imageTags) {
+        const names = [
+          "data-src",
+          "data-original",
+          "data-lazy-src",
+          "data-srcset",
+          "src",
+          "srcset"
+        ];
+
+        for (const name of names) {
+          const raw = getAttr(tag, name);
+          if (!raw) continue;
+
+          const firstUrl = raw.split(",")[0].trim().split(/\s+/)[0];
+
+          if (
+            !firstUrl ||
+            firstUrl.startsWith("data:") ||
+            firstUrl.includes("placeholder")
+          ) continue;
+
+          try {
+            image = new URL(firstUrl, host).href;
+            break;
+          } catch (_) {}
+        }
+
+        if (image) break;
+      }
+
+      if (!image) continue;
 
       candidates.push({
         title: normalize(titleMatch[1]),
-        image: absUrl(imgMatch[1].replace(/&amp;/g, "&"))
+        image
       });
     }
 
@@ -131,10 +154,14 @@ async function getAlternatePoster(title) {
     const partial = candidates.find(item =>
       item.title.length >= 8 &&
       wanted.length >= 8 &&
-      (item.title.includes(wanted) || wanted.includes(item.title))
+      (
+        item.title.includes(wanted) ||
+        wanted.includes(item.title)
+      )
     );
 
     return partial ? partial.image : "";
+
   } catch (error) {
     console.log(
       "[AnimePaheCustom] Alternate poster lookup failed: " + error
@@ -142,6 +169,7 @@ async function getAlternatePoster(title) {
     return "";
   }
 }
+
 
 
 async function searchResults(keyword) {
