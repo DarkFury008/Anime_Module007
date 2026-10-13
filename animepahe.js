@@ -118,7 +118,9 @@ async function searchResults(keyword) {
 
       const results = rows.map(item => ({
         title: String(item.title || item.name || "Anime"),
-        image: item.poster || item.image || "",
+        image: (item.poster || item.image)
+         ? absUrl(item.poster || item.image)
+         : "",
         href: item.session
           ? host + "/anime/" + item.session +
             (item.id ? "/" + item.id : "")
@@ -139,53 +141,44 @@ async function searchResults(keyword) {
 }
 
 
+
 async function extractDetails(url) {
   try {
     const html = await requestText(absUrl(url));
-    const descMatch =
-      html.match(/<meta[^>]+(?:name|property)=["'](?:description|og:description)["'][^>]+content=["']([^"']*)["'][^>]*>/i) ||
-      html.match(/<meta[^>]+content=["']([^"']*)["'][^>]+(?:name|property)=["'](?:description|og:description)["'][^>]*>/i);
-    const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
-    const yearMatch = html.match(/\b(19\d{2}|20\d{2})\b/);
-    return JSON.stringify({
-      description: descMatch ? cleanText(descMatch[1]) : "",
-      aliases: titleMatch ? cleanText(titleMatch[1]) : "",
-      airdate: yearMatch ? yearMatch[1] : ""
-    });
-  } catch (_) {
-    return JSON.stringify({ description: "", aliases: "", airdate: "" });
-  }
-}
 
-async function extractEpisodes(url) {
-  try {
-    const session = extractAnimeSession(url);
-    const id = session;
-    if (!session) return JSON.stringify([]);
-    const episodes = [];
-    let page = 1;
-    let lastPage = 1;
-    do {
-      const data = await requestJson(
-        API + "?m=release&id=" + encodeURIComponent(id) +
-        "&sort=episode_asc&page=" + page
-      );
-      const rows = Array.isArray(data.data) ? data.data : [];
-      for (const ep of rows) {
-        if (!ep || !ep.session) continue;
-        const rawNumber = ep.episode ?? ep.number ?? (episodes.length + 1);
-        const number = Number(rawNumber);
-        episodes.push({
-          href: BASE + "/play/" + session + "/" + String(ep.session),
-          number: Number.isFinite(number) ? number : episodes.length + 1
-        });
-      }
-      lastPage = Number(data.last_page || page);
-      page++;
-    } while (page <= lastPage && page <= 100);
-    return JSON.stringify(episodes);
-  } catch (_) {
-    return JSON.stringify([]);
+    const descMatch = html.match(
+      /<div class="anime-synopsis">([\s\S]*?)<\/div>/i
+    );
+    const aliasMatch = html.match(
+      /<strong>Synonyms:\s*<\/strong>([\s\S]*?)<\/p>/i
+    );
+    const airMatch = html.match(
+      /<strong>Aired:\s*<\/strong>([\s\S]*?)<\/p>/i
+    );
+
+    const description = descMatch
+      ? cleanText(descMatch[1].replace(/<br\s*\/?>/gi, "\n"))
+      : "";
+
+    const aliases = aliasMatch
+      ? cleanText(aliasMatch[1])
+      : "";
+
+    const airdate = airMatch
+      ? cleanText(airMatch[1])
+      : "";
+
+    return JSON.stringify([{
+      description,
+      aliases,
+      airdate
+    }]);
+  } catch (error) {
+    return JSON.stringify([{
+      description: "",
+      aliases: "",
+      airdate: ""
+    }]);
   }
 }
 
