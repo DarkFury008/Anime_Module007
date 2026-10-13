@@ -231,27 +231,18 @@ async function searchResults(keyword) {
         ? JSON.parse(body)
         : body;
 
-      const rows = Array.isArray(data.data)
-        ? data.data
-        : [];
-
-      const results = await Promise.all(rows.map(async item => {
-       const originalPoster = (item.poster || item.image)
-        ? absUrl(item.poster || item.image)
-        : "";
-        
-       const alternatePoster = await getAlternatePoster(
-        String(item.title || item.name || "")
-       );
-       return{
+      
+      const results = rows.map(item => ({
         title: String(item.title || item.name || "Anime"),
-        image: alternatePoster || originalPoster,
-        href: item.session
+        image: (item.poster || item.image)
+          ? absUrl(item.poster || item.image)
+          : "",
+       href: item.session
          ? host + "/anime/" + item.session +
            (item.id ? "/" + item.id : "")
          : ""
- };
-})).then(items => items.filter(item => item.href));
+       })).filter(item => item.href);
+
 
 
       if (results.length) {
