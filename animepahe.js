@@ -218,7 +218,9 @@ async function extractEpisodes(url) {
 
     return JSON.stringify(episodes);
   } catch (error) {
-    return JSON.stringify([]);
+    return JSON.stringify({
+      debugError: String(error)
+    });
   }
 }
 
