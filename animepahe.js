@@ -118,8 +118,10 @@ async function searchResults(keyword) {
       if (results.length) {
         return JSON.stringify(results);
       }
-    } catch (_) {
-      // Try the next domain.
+    } catch (error) {
+      throw new Error(
+        "AnimePahe search failed: " + String(error)
+      );
     }
   }
 
