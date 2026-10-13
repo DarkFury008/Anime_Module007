@@ -94,10 +94,20 @@ async function searchResults(keyword) {
         null
       );
 
-      const body = typeof response === "string"
-        ? response
-        : response.body ?? response.data ?? response.text;
-
+      let body;
+      
+      if (typeof response === "string") {
+        body = response;
+      } else if (response && typeof response.text === "function") {
+        body = await response.text();
+      } else if (response && typeof response.body === "string") {
+        body = response.body;
+      } else if (response && typeof response.data === "string") {
+        body = response.data;
+      } else {
+        throw new Error("Unsupported fetch response shape");
+      }
+      
       const data = typeof body === "string"
         ? JSON.parse(body)
         : body;
