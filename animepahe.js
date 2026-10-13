@@ -230,23 +230,28 @@ async function searchResults(keyword) {
       const data = typeof body === "string"
         ? JSON.parse(body)
         : body;
-     
+
       const rows = Array.isArray(data.data)
         ? data.data
         : [];
 
-      
-      const results = rows.map(item => ({
+      const results = await Promise.all(rows.map(async item => {
+       const originalPoster = (item.poster || item.image)
+        ? absUrl(item.poster || item.image)
+        : "";
+        
+       const alternatePoster = await getAlternatePoster(
+        String(item.title || item.name || "")
+       );
+       return{
         title: String(item.title || item.name || "Anime"),
-        image: (item.poster || item.image)
-          ? absUrl(item.poster || item.image)
-          : "",
-       href: item.session
+        image: alternatePoster || originalPoster,
+        href: item.session
          ? host + "/anime/" + item.session +
            (item.id ? "/" + item.id : "")
          : ""
-       })).filter(item => item.href);
-
+ };
+})).then(items => items.filter(item => item.href));
 
 
       if (results.length) {
@@ -766,5 +771,4 @@ function unpack(source) {
 
     return payload.replace(/\b\w+\b/g, lookup);
 }
-
 
