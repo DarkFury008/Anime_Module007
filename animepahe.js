@@ -72,76 +72,6 @@ function getAttr(tag, name) {
   return m ? htmlDecode(m[2]) : "";
 }
 
-async function getAlternatePoster(title) {
-  try {
-    const host = "https://animepahetv.to";
-    const url = host + "/search?q=" + encodeURIComponent(title);
-
-    const response = await fetchv2(url, {
-      "Referer": host + "/",
-      "User-Agent": "Mozilla/5.0"
-    }, "GET", null);
-
-    let html;
-    if (typeof response === "string") {
-      html = response;
-    } else if (response && typeof response.text === "function") {
-      html = await response.text();
-    } else if (response && typeof response.body === "string") {
-      html = response.body;
-    } else {
-      return "";
-    }
-
-    const normalize = s => String(s || "")
-      .replace(/&amp;/g, "&")
-      .replace(/&#39;|&#x27;/g, "'")
-      .replace(/&quot;/g, '"')
-      .replace(/<[^>]*>/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
-
-    const wanted = normalize(title);
-    const blocks = html.split('<div class="anime-item">');
-    const candidates = [];
-
-    for (let i = 1; i < blocks.length; i++) {
-      const block = blocks[i];
-
-      const titleMatch = block.match(
-        /<div\s+class="anime-name">\s*<a[^>]*>([^<]+)<\/a>/i
-      );
-
-      const imgMatch = block.match(
-        /<img\b[^>]*?(?:data-src|src)="([^"]+)"/i
-      );
-
-      if (!titleMatch || !imgMatch || !imgMatch[1]) continue;
-
-      candidates.push({
-        title: normalize(titleMatch[1]),
-        image: absUrl(imgMatch[1].replace(/&amp;/g, "&"))
-      });
-    }
-
-    const exact = candidates.find(item => item.title === wanted);
-    if (exact) return exact.image;
-
-    const partial = candidates.find(item =>
-      item.title.length >= 8 &&
-      wanted.length >= 8 &&
-      (item.title.includes(wanted) || wanted.includes(item.title))
-    );
-
-    return partial ? partial.image : "";
-  } catch (error) {
-    console.log(
-      "[AnimePaheCustom] Alternate poster lookup failed: " + error
-    );
-    return "";
-  }
-}
 
 
 async function searchResults(keyword) {
@@ -187,23 +117,26 @@ async function searchResults(keyword) {
         ? data.data
         : [];
 
-      const results = await Promise.all(rows.map(async item => {
-       const originalPoster = (item.poster || item.image)
-        ? absUrl(item.poster || item.image)
-        : "";
+      const results = rows.map(item => {
+          const originalPoster = (item.poster || item.image)
+              ? absUrl(item.poster || item.image)
+              : "";
+          return {
+              title: String(item.title || item.name || "Anime"),
+              image: originalPoster,
+              href: item.session
+                  ? host + "/anime/" + item.session +
+                    (item.id ? "/" + item.id : "")
+                  : ""
+          };
+      });
+                    
+              
         
-       const alternatePoster = await getAlternatePoster(
-        String(item.title || item.name || "")
-       );
-       return{
-        title: String(item.title || item.name || "Anime"),
-        image: alternatePoster || originalPoster,
-        href: item.session
-         ? host + "/anime/" + item.session +
-           (item.id ? "/" + item.id : "")
-         : ""
- };
-})).then(items => items.filter(item => item.href));
+       
+      
+      
+      
 
 
       if (results.length) {
