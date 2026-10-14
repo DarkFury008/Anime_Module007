@@ -74,145 +74,63 @@ function getAttr(tag, name) {
 
 
 
-
-async function getAniListPosters(keyword) {
-  const posters = new Map();
-
-  try {
-    const query = `query ($search: String) {
-      Page(page: 1, perPage: 25) {
-        media(search: $search, type: ANIME) {
-          title {
-            romaji
-            english
-            native
-          }
-          coverImage {
-            extraLarge
-            large
-          }
-        }
-      }
-    }`;
-
-    const variables = JSON.stringify({ search: keyword });
-    const url = "https://graphql.anilist.co?query=" +
-      encodeURIComponent(query) +
-      "&variables=" + encodeURIComponent(variables);
-
-    const raw = await requestText(url, {
-      "Accept": "application/json",
-      "User-Agent": "Mozilla/5.0"
-    });
-
-    const data = JSON.parse(raw);
-    const media = data?.data?.Page?.media || [];
-
-    const normalize = s => String(s || "")
-      .toLowerCase()
-      .replace(/&amp;/g, "&")
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
-
-    for (const anime of media) {
-      const image = anime.coverImage?.extraLarge ||
-        anime.coverImage?.large || "";
-
-      if (!image) continue;
-
-      for (const title of Object.values(anime.title || {})) {
-        const key = normalize(title);
-        if (key && !posters.has(key)) {
-          posters.set(key, image);
-        }
-      }
-    }
-  } catch (error) {
-    console.log("[AnimePaheCustom] AniList lookup failed: " + error);
-  }
-
-  return posters;
-}
-
 async function searchResults(keyword) {
   const q = String(keyword || "").trim();
   if (!q) return JSON.stringify([]);
 
-  const host = "https://animepahe.pw";
-  const url = host + "/api?m=search&q=" +
-    encodeURIComponent(q);
+  const query = "?m=search&q=" + encodeURIComponent(q);
+  const hosts = [
+    "https://animepahe.pw"
+  ];
 
-  try {
-    const response = await fetchv2(url, {
-      "Accept": "application/json",
-      "Referer": host + "/"
-    }, "GET", null);
+  for (const host of hosts) {
+    try {
+      const response = await fetchv2(
+        host + "/api" + query,
+        {
+          "Accept": "application/json",
+          "Referer": host + "/"
+        },
+        "GET",
+        null
+      );
 
-    let body;
+      let body;
+      
+      if (typeof response === "string") {
+        body = response;
+      } else if (response && typeof response.text === "function") {
+        body = await response.text();
+      } else if (response && typeof response.body === "string") {
+        body = response.body;
+      } else if (response && typeof response.data === "string") {
+        body = response.data;
+      } else {
+        throw new Error("Unsupported fetch response shape");
+      }
+      
+      const data = typeof body === "string"
+        ? JSON.parse(body)
+        : body;
 
-    if (typeof response === "string") {
-      body = response;
-    } else if (response && typeof response.text === "function") {
-      body = await response.text();
-    } else if (response && typeof response.body === "string") {
-      body = response.body;
-    } else if (response && typeof response.data === "string") {
-      body = response.data;
-    } else {
-      throw new Error("Unsupported fetch response shape");
-    }
+      const rows = Array.isArray(data.data)
+        ? data.data
+        : [];
 
-    const data = typeof body === "string"
-      ? JSON.parse(body)
-      : body;
-
-    const rows = Array.isArray(data.data) ? data.data : [];
-    if (!rows.length) return JSON.stringify([]);
-
-    const posters = await getAniListPosters(q);
-
-    const normalize = s => String(s || "")
-      .toLowerCase()
-      .replace(/&amp;/g, "&")
-      .replace(/[^a-z0-9]+/g, " ")
-      .trim();
-
-    const results = rows
-      .filter(item => item && item.session)
-      .map(item => {
-        const title = String(item.title || item.name || "Anime");
-        const key = normalize(title);
-
-        let image = posters.get(key) || "";
-
-        if (!image && key.length >= 8) {
-          for (const [candidate, poster] of posters) {
-            if (
-              candidate.length >= 8 &&
-              (candidate.includes(key) || key.includes(candidate))
-            ) {
-              image = poster;
-              break;
-            }
-          }
-        }
-
-        const originalPoster = item.poster || item.image || "";
-
-        return {
-          title,
-          image: image || absUrl(originalPoster),
-          href: host + "/anime/" + item.session +
-            (item.id ? "/" + item.id : "")
-        };
+      const results = rows.map(item => {
+          const originalPoster = (item.poster || item.image)
+              ? absUrl(item.poster || item.image)
+              : "";
+          return {
+              title: String(item.title || item.name || "Anime"),
+              image: originalPoster,
+              href: item.session
+                  ? host + "/anime/" + item.session +
+                    (item.id ? "/" + item.id : "")
+                  : ""
+          };
       });
-
-    return JSON.stringify(results);
-  } catch (error) {
-    throw new Error("AnimePahe search failed: " + String(error));
-  }
-}
-                   
+                    
               
         
        
@@ -738,4 +656,3 @@ function unpack(source) {
 
     return payload.replace(/\b\w+\b/g, lookup);
 }
-
