@@ -211,7 +211,7 @@ async function searchResults(keyword) {
     }
   }
 
-  return JSON.stringify([]);
+  throw new Error("ANV search diagnostic: no results parsed from either endpoint");
 }
 
 
