@@ -143,43 +143,77 @@ function normalizeAnimeObjects(html) {
   return unique(results);
 }
 
+
 async function searchResults(keyword) {
-  try {
-    const query = encodeURIComponent(String(keyword || "").trim());
-    if (!query) return JSON.stringify([]);
+  const q = String(keyword || "").trim();
+  if (!q) return JSON.stringify([]);
 
-    // Try the site's normal search route first.
-    const html = await requestText(
-      BASE + "/search?keyword=" + query
-    );
+  const urls = [
+    BASE + "/search?keyword=" + encodeURIComponent(q),
+    BASE + "/search?q=" + encodeURIComponent(q)
+  ];
 
-    let results = normalizeAnimeObjects(html);
+  for (const url of urls) {
+    try {
+      const raw = await requestText(url);
+      if (!raw) continue;
 
-    // Fallback: inspect search links rendered directly in HTML.
-    if (!results.length) {
-      const links = [];
-      const re = /<a\b([^>]*?)href=["']([^"']*\/anime\/[^"']+)["']([^>]*)>([\s\S]*?)<\/a>/gi;
-      let match;
+      // Handle a JSON response, including nested result arrays.
+      try {
+        const data = JSON.parse(raw);
+        const rows = Array.isArray(data) ? data :
+          data.results || data.data || data.items ||
+          data.anime || data.result || [];
 
-      while ((match = re.exec(html)) !== null) {
-        const href = absoluteUrl(match[2]);
-        const title = stripTags(match[4]);
-        if (!href || !title) continue;
+        if (Array.isArray(rows)) {
+          const results = rows.map(item => {
+            const path = item.href || item.url || item.link ||
+              item.slug || item.animeUrl || item.anime_url || "";
+            const title = item.title || item.name ||
+              item.englishTitle || item.english_title || "";
 
-        const img = (match[0].match(
-          /<img\b[^>]*src=["']([^"']+)["']/i
-        ) || [])[1] || "";
+            let href = "";
+            try { href = new URL(path, BASE).href; } catch (_) {}
 
-        links.push({ title, image: absoluteUrl(img), href });
+            return {
+              title: stripTags(title),
+              image: absoluteUrl(
+                item.poster || item.image || item.cover || item.thumbnail || ""
+              ),
+              href
+            };
+          }).filter(item =>
+            item.title && item.href &&
+            new URL(item.href).hostname.endsWith("anv.to") &&
+            /\/anime\//i.test(item.href)
+          );
+
+          if (results.length) return JSON.stringify(unique(results));
+        }
+      } catch (_) {}
+
+      // Fallback for server-rendered HTML.
+      const results = [];
+      const re = /<a\b[^>]*href=["']([^"']*\/anime\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+      let m;
+
+      while ((m = re.exec(raw)) !== null) {
+        const href = absoluteUrl(m[1]);
+        const title = stripTags(m[2]);
+        if (!href || !title || !/\/anime\//i.test(href)) continue;
+
+        results.push({ title, image: "", href });
       }
-      results = unique(links);
-    }
 
-    return JSON.stringify(results);
-  } catch (_) {
-    return JSON.stringify([]);
+      if (results.length) return JSON.stringify(unique(results));
+    } catch (_) {
+      // Try the next candidate URL.
+    }
   }
+
+  return JSON.stringify([]);
 }
+
 
 async function extractDetails(url) {
   try {
