@@ -200,8 +200,8 @@ async function searchResults(keyword) {
 
   // These are candidate routes, not confirmed ANV API endpoints.
   const urls = [
-    BASE + "/search?keyword=" + encodeURIComponent(q),
-    BASE + "/search?q=" + encodeURIComponent(q)
+    BASE + "/browse?q=" + encodeURIComponent(q)
+    
   ];
 
   const diagnostics = [];
